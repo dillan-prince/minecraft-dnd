@@ -32,6 +32,22 @@ public final class InitiativeManager {
     /** One combatant in the turn order. For now participants are players; entity enemies come later. */
     public record Participant(UUID id, String name, int roll) {}
 
+    /**
+     * Per-turn action economy for one participant. All three refresh at the start of the
+     * participant's own turn; the reaction is typically spent during others' turns.
+     */
+    private static final class ActionBudget {
+        private boolean action = true;
+        private boolean bonus = true;
+        private boolean reaction = true;
+
+        void resetAll() {
+            action = true;
+            bonus = true;
+            reaction = true;
+        }
+    }
+
     private boolean active = false;
     private final List<Participant> order = new ArrayList<>();
     private int turnIndex = 0;
@@ -43,6 +59,9 @@ public final class InitiativeManager {
      * they stop); off-turn participants are teleported back to theirs. Keyed by player UUID.
      */
     private final Map<UUID, Vec3> anchors = new HashMap<>();
+
+    /** Per-participant action economy, keyed by player UUID. */
+    private final Map<UUID, ActionBudget> budgets = new HashMap<>();
 
     public boolean isActive() {
         return active;
@@ -84,6 +103,42 @@ public final class InitiativeManager {
         anchors.put(id, pos);
     }
 
+    public boolean hasAction(UUID id) {
+        ActionBudget b = budgets.get(id);
+        return b != null && b.action;
+    }
+
+    public boolean hasBonus(UUID id) {
+        ActionBudget b = budgets.get(id);
+        return b != null && b.bonus;
+    }
+
+    public boolean hasReaction(UUID id) {
+        ActionBudget b = budgets.get(id);
+        return b != null && b.reaction;
+    }
+
+    public void spendAction(UUID id) {
+        ActionBudget b = budgets.get(id);
+        if (b != null) {
+            b.action = false;
+        }
+    }
+
+    public void spendBonus(UUID id) {
+        ActionBudget b = budgets.get(id);
+        if (b != null) {
+            b.bonus = false;
+        }
+    }
+
+    public void spendReaction(UUID id) {
+        ActionBudget b = budgets.get(id);
+        if (b != null) {
+            b.reaction = false;
+        }
+    }
+
     /**
      * Roll d20 for each participant, sort descending, and begin. Replaces any existing
      * encounter. Returns the established order (also useful for broadcasting).
@@ -91,10 +146,12 @@ public final class InitiativeManager {
     public List<Participant> start(List<ServerPlayer> players, RandomSource random) {
         order.clear();
         anchors.clear();
+        budgets.clear();
         for (ServerPlayer player : players) {
             int roll = random.nextInt(20) + 1; // d20
             order.add(new Participant(player.getUUID(), player.getName().getString(), roll));
             anchors.put(player.getUUID(), player.position());
+            budgets.put(player.getUUID(), new ActionBudget());
         }
         // Sort by roll descending. Ties keep insertion order (stable sort) — DM can re-roll if it matters.
         order.sort((a, b) -> Integer.compare(b.roll(), a.roll()));
@@ -120,7 +177,15 @@ public final class InitiativeManager {
             turnIndex = 0;
             round++;
         }
-        return current();
+        // Refresh the new current player's action economy at the start of their turn.
+        Optional<Participant> cur = current();
+        cur.ifPresent(p -> {
+            ActionBudget budget = budgets.get(p.id());
+            if (budget != null) {
+                budget.resetAll();
+            }
+        });
+        return cur;
     }
 
     /** End the encounter and release everyone. */
@@ -128,6 +193,7 @@ public final class InitiativeManager {
         active = false;
         order.clear();
         anchors.clear();
+        budgets.clear();
         turnIndex = 0;
         round = 0;
     }

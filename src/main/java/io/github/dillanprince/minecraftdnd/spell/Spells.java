@@ -33,4 +33,14 @@ public final class Spells {
 
     /** All spells, in browse order. */
     public static final List<Spell> ALL = List.of(FIRE_BOLT, MAGIC_MISSILE, HEALING_WORD, SHIELD, FIREBALL);
+
+    /** Look up a spell by its id, or null if unknown. Used to validate incoming cast packets. */
+    public static Spell byId(String id) {
+        for (Spell spell : ALL) {
+            if (spell.id().equals(id)) {
+                return spell;
+            }
+        }
+        return null;
+    }
 }

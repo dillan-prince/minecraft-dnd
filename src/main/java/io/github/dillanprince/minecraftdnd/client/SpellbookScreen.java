@@ -1,11 +1,13 @@
 package io.github.dillanprince.minecraftdnd.client;
 
+import io.github.dillanprince.minecraftdnd.network.CastSpellPayload;
 import io.github.dillanprince.minecraftdnd.spell.Spell;
 import io.github.dillanprince.minecraftdnd.spell.Spells;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
  * Client-side spellbook browser. A list of spell buttons on the left; the selected spell's
@@ -44,6 +46,18 @@ public class SpellbookScreen extends Screen {
                     .bounds(LIST_X, y, BUTTON_W, BUTTON_H)
                     .build());
             y += BUTTON_H + ROW_GAP;
+        }
+
+        // Cast the selected spell. The server validates turn/budget and resolves the effect.
+        addRenderableWidget(Button.builder(Component.literal("Cast"), b -> castSelected())
+                .bounds(DETAIL_X, this.height - 40, 100, BUTTON_H)
+                .build());
+    }
+
+    private void castSelected() {
+        if (selected != null) {
+            ClientPacketDistributor.sendToServer(new CastSpellPayload(selected.id()));
+            onClose();
         }
     }
 

@@ -25,7 +25,12 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+
+import io.github.dillanprince.minecraftdnd.initiative.InitiativeCommand;
+import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -113,5 +118,18 @@ public class minecraftdnd {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+    }
+
+    // Register the /initiative command set when the server builds its command tree.
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        InitiativeCommand.register(event.getDispatcher());
+    }
+
+    // Initiative state is a process-wide singleton; clear it on shutdown so a fresh
+    // server (or a single-player world reload) never inherits a stale encounter.
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        InitiativeManager.get().end();
     }
 }

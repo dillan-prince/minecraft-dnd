@@ -33,6 +33,7 @@ bin/
 .DS_Store
 
 ### Claude Code ###
+CLAUDE.md
 .claude/
 !.claude/settings.json
 

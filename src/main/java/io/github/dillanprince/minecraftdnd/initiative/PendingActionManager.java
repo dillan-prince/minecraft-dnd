@@ -9,15 +9,16 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.dillanprince.minecraftdnd.minecraftdnd;
+import io.github.dillanprince.minecraftdnd.network.CloseApprovalPayload;
+import io.github.dillanprince.minecraftdnd.network.OpenApprovalPayload;
 import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Server-side registry of {@link PendingAction}s awaiting DM resolution. Actions are held
@@ -39,6 +40,8 @@ public final class PendingActionManager {
     /** Newest action is the tail (top of stack). */
     private final Deque<PendingAction> stack = new ArrayDeque<>();
     private int nextId = 1;
+    /** Last server seen (set on submit/tick); used to push popup-close packets to DMs. */
+    private MinecraftServer server;
 
     public boolean hasPendingFor(UUID casterId) {
         return stack.stream().anyMatch(p -> p.casterId().equals(casterId));
@@ -50,6 +53,7 @@ public final class PendingActionManager {
      */
     public int submit(String description, UUID casterId, Runnable onApprove, Runnable onDeny,
                       int timeoutTicks, MinecraftServer server) {
+        this.server = server;
         int id = nextId++;
         PendingAction action = new PendingAction(id, description, casterId, onApprove, onDeny, timeoutTicks);
         stack.addLast(action);
@@ -63,6 +67,7 @@ public final class PendingActionManager {
             return false;
         }
         action.runApprove();
+        sendClose(id);
         return true;
     }
 
@@ -72,6 +77,7 @@ public final class PendingActionManager {
             return false;
         }
         action.runDeny();
+        sendClose(id);
         return true;
     }
 
@@ -103,6 +109,7 @@ public final class PendingActionManager {
 
     /** Advance approval-window timers; expired actions are dropped (treated as denied). */
     void tick(MinecraftServer server) {
+        this.server = server;
         if (stack.isEmpty()) {
             return;
         }
@@ -116,12 +123,23 @@ public final class PendingActionManager {
         for (PendingAction a : expired) {
             stack.remove(a);
             a.runDeny();
+            sendClose(a.id());
             if (server != null) {
                 for (ServerPlayer dm : DmAccess.dmPlayers(server)) {
                     dm.sendSystemMessage(Component.literal("#" + a.id() + " " + a.description() + " timed out (denied).")
                             .withStyle(ChatFormatting.GRAY));
                 }
             }
+        }
+    }
+
+    /** Tell DM clients to dismiss the popup for this action id, if they're showing it. */
+    private void sendClose(int id) {
+        if (server == null) {
+            return;
+        }
+        for (ServerPlayer dm : DmAccess.dmPlayers(server)) {
+            PacketDistributor.sendToPlayer(dm, new CloseApprovalPayload(id));
         }
     }
 
@@ -132,18 +150,21 @@ public final class PendingActionManager {
 
     private void promptDm(MinecraftServer server, PendingAction action, int timeoutTicks) {
         int seconds = Math.max(1, timeoutTicks / 20);
-        MutableComponent approve = Component.literal(" [Approve]")
-                .withStyle(s -> s.withColor(ChatFormatting.GREEN)
-                        .withClickEvent(new ClickEvent.RunCommand("/dm approve " + action.id())));
-        MutableComponent denyButton = Component.literal(" [Deny]")
-                .withStyle(s -> s.withColor(ChatFormatting.RED)
-                        .withClickEvent(new ClickEvent.RunCommand("/dm deny " + action.id())));
-        MutableComponent message = Component.literal("[DM] #" + action.id() + " " + action.description() + " (" + seconds + "s)")
-                .withStyle(ChatFormatting.GOLD)
-                .append(approve)
-                .append(denyButton);
+        Component message = Component.literal("[DM] #" + action.id() + " " + action.description()
+                + " (" + seconds + "s) — resolve in the popup, or /dm approve " + action.id() + " / /dm deny " + action.id())
+                .withStyle(ChatFormatting.GOLD);
         for (ServerPlayer dm : DmAccess.dmPlayers(server)) {
             dm.sendSystemMessage(message);
+            PacketDistributor.sendToPlayer(dm, new OpenApprovalPayload(action.id(), action.description()));
         }
+    }
+
+    /** Re-open the popup for the current top pending action on the DM's client(s), if any. */
+    public void promptNext(MinecraftServer server) {
+        top().ifPresent(action -> {
+            for (ServerPlayer dm : DmAccess.dmPlayers(server)) {
+                PacketDistributor.sendToPlayer(dm, new OpenApprovalPayload(action.id(), action.description()));
+            }
+        });
     }
 }

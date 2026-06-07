@@ -2,6 +2,8 @@ package io.github.dillanprince.minecraftdnd.network;
 
 import java.util.UUID;
 
+import io.github.dillanprince.minecraftdnd.client.ClientNetwork;
+import io.github.dillanprince.minecraftdnd.initiative.DmAccess;
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
 import io.github.dillanprince.minecraftdnd.initiative.PendingActionManager;
 import io.github.dillanprince.minecraftdnd.minecraftdnd;
@@ -33,6 +35,31 @@ public final class ModNetwork {
     static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToServer(CastSpellPayload.TYPE, CastSpellPayload.CODEC, ModNetwork::onCast);
+        registrar.playToServer(ResolvePendingPayload.TYPE, ResolvePendingPayload.CODEC, ModNetwork::onResolve);
+        // The handler references client-only code; the lambda only runs on the client, so the
+        // client class is never loaded on a dedicated server.
+        registrar.playToClient(OpenApprovalPayload.TYPE, OpenApprovalPayload.CODEC,
+                (payload, context) -> context.enqueueWork(() -> ClientNetwork.openApproval(payload)));
+        registrar.playToClient(CloseApprovalPayload.TYPE, CloseApprovalPayload.CODEC,
+                (payload, context) -> context.enqueueWork(() -> ClientNetwork.closeApproval(payload)));
+    }
+
+    private static void onResolve(ResolvePendingPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer player)) {
+                return;
+            }
+            MinecraftServer server = player.level().getServer();
+            if (server == null || !DmAccess.isDm(server, player)) {
+                return; // only the DM may resolve pending actions
+            }
+            boolean resolved = payload.approve()
+                    ? PendingActionManager.get().approve(payload.id())
+                    : PendingActionManager.get().deny(payload.id());
+            if (resolved) {
+                PendingActionManager.get().promptNext(server); // chain to the next pending action, if any
+            }
+        });
     }
 
     private static void onCast(CastSpellPayload payload, IPayloadContext context) {

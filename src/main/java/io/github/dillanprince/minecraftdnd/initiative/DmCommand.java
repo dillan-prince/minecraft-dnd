@@ -34,7 +34,39 @@ public final class DmCommand {
                         .then(Commands.argument("id", IntegerArgumentType.integer(1))
                                 .executes(ctx -> deny(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id")))))
                 .then(Commands.literal("pending")
-                        .executes(ctx -> listPending(ctx.getSource()))));
+                        .executes(ctx -> listPending(ctx.getSource())))
+                .then(Commands.literal("remove")
+                        .executes(ctx -> removeDowned(ctx.getSource())))
+                .then(Commands.literal("revive")
+                        .executes(ctx -> revive(ctx.getSource())))
+                .then(Commands.literal("downed")
+                        .executes(ctx -> listDowned(ctx.getSource()))));
+    }
+
+    private static int removeDowned(CommandSourceStack source) {
+        int count = DownedManager.get().removeDowned(source.getServer());
+        source.sendSuccess(() -> Component.literal("Removed " + plural(count, "downed enemy", "downed enemies") + ".")
+                .withStyle(ChatFormatting.GREEN), false);
+        return count;
+    }
+
+    private static int revive(CommandSourceStack source) {
+        int count = DownedManager.get().reviveAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Revived " + plural(count, "entity", "entities") + ".")
+                .withStyle(ChatFormatting.GREEN), false);
+        return count;
+    }
+
+    private static int listDowned(CommandSourceStack source) {
+        int count = DownedManager.get().downedCount();
+        source.sendSuccess(() -> Component.literal(plural(count, "downed entity", "downed entities") + ".")
+                .withStyle(ChatFormatting.GRAY), false);
+        return count;
+    }
+
+    /** Formats a count with the matching singular/plural noun, e.g. {@code "1 entity"} / {@code "3 entities"}. */
+    private static String plural(int n, String singular, String pluralForm) {
+        return n + " " + (n == 1 ? singular : pluralForm);
     }
 
     private static int approveTop(CommandSourceStack source) {

@@ -27,6 +27,7 @@ import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 import io.github.dillanprince.minecraftdnd.initiative.DmCommand;
+import io.github.dillanprince.minecraftdnd.initiative.DownedManager;
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeCommand;
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
 import io.github.dillanprince.minecraftdnd.spell.SpellbookItem;
@@ -123,5 +124,6 @@ public class minecraftdnd {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         InitiativeManager.get().end();
+        DownedManager.get().clearAll();
     }
 }

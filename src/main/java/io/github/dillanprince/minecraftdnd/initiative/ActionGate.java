@@ -3,6 +3,7 @@ package io.github.dillanprince.minecraftdnd.initiative;
 import java.util.UUID;
 
 import io.github.dillanprince.minecraftdnd.minecraftdnd;
+import io.github.dillanprince.minecraftdnd.spell.SpellbookItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -74,6 +75,11 @@ public final class ActionGate {
 
     @SubscribeEvent
     static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        // Opening the spellbook is pure client-side browsing and always allowed, even
+        // off-turn. (The eventual cast packet is gated separately, server-side.)
+        if (event.getItemStack().getItem() instanceof SpellbookItem) {
+            return;
+        }
         cancelIfFrozen(event);
     }
 

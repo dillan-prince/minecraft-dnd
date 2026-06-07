@@ -2,12 +2,5 @@
   "itemGroup.minecraftdnd": "Example Mod Tab",
   "block.minecraftdnd.example_block": "Example Block",
   "item.minecraftdnd.example_item": "Example Item",
-
-  "minecraftdnd.configuration.title": "minecraft-dnd Configs",
-  "minecraftdnd.configuration.section.minecraftdnd.common.toml": "minecraft-dnd Configs",
-  "minecraftdnd.configuration.section.minecraftdnd.common.toml.title": "minecraft-dnd Configs",
-  "minecraftdnd.configuration.items": "Item List",
-  "minecraftdnd.configuration.logDirtBlock": "Log Dirt Block",
-  "minecraftdnd.configuration.magicNumberIntroduction": "Magic Number Text",
-  "minecraftdnd.configuration.magicNumber": "Magic Number"
+  "item.minecraftdnd.spellbook": "Spellbook"
 }

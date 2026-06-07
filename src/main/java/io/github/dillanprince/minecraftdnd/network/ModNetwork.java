@@ -6,6 +6,7 @@ import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
 import io.github.dillanprince.minecraftdnd.initiative.PendingActionManager;
 import io.github.dillanprince.minecraftdnd.minecraftdnd;
 import io.github.dillanprince.minecraftdnd.spell.Spell;
+import io.github.dillanprince.minecraftdnd.spell.SpellEffects;
 import io.github.dillanprince.minecraftdnd.spell.SpellType;
 import io.github.dillanprince.minecraftdnd.spell.Spells;
 import net.minecraft.ChatFormatting;
@@ -124,10 +125,7 @@ public final class ModNetwork {
         }
     }
 
-    /**
-     * Apply the spell's effect. MVP: announce the cast to the table. Real per-spell effects
-     * (damage, status, projectiles, particles) will be added here / dispatched per spell.
-     */
+    /** Announce the cast to the table, then apply the spell's server-side effect. */
     private static void resolveEffect(ServerPlayer player, Spell spell) {
         MinecraftServer server = player.level().getServer();
         if (server != null) {
@@ -136,6 +134,7 @@ public final class ModNetwork {
                             .withStyle(ChatFormatting.LIGHT_PURPLE),
                     false);
         }
+        SpellEffects.resolve(player, spell);
     }
 
     private static void deny(ServerPlayer player, String reason) {

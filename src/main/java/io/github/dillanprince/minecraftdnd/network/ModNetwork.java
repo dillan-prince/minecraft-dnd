@@ -3,8 +3,10 @@ package io.github.dillanprince.minecraftdnd.network;
 import java.util.UUID;
 
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
+import io.github.dillanprince.minecraftdnd.initiative.PendingActionManager;
 import io.github.dillanprince.minecraftdnd.minecraftdnd;
 import io.github.dillanprince.minecraftdnd.spell.Spell;
+import io.github.dillanprince.minecraftdnd.spell.SpellType;
 import io.github.dillanprince.minecraftdnd.spell.Spells;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -41,6 +43,9 @@ public final class ModNetwork {
         });
     }
 
+    /** DM-approval window length for a suspended cast. */
+    private static final int APPROVAL_TIMEOUT_TICKS = 30 * 20; // 30 seconds
+
     private static void resolveCast(ServerPlayer player, String spellId) {
         Spell spell = Spells.byId(spellId);
         if (spell == null) {
@@ -48,46 +53,75 @@ public final class ModNetwork {
             return;
         }
 
-        // Action-economy gate, but only while this player is in an active encounter. Out of
-        // combat (or for a non-participant such as a spectating DM), casting is unrestricted.
         InitiativeManager manager = InitiativeManager.get();
         UUID id = player.getUUID();
-        if (manager.isActive() && manager.isParticipant(id)) {
-            switch (spell.type()) {
-                case ACTION -> {
-                    if (!manager.isCurrent(id)) {
-                        deny(player, "It's not your turn.");
-                        return;
-                    }
-                    if (!manager.hasAction(id)) {
-                        deny(player, "You've already used your action this turn.");
-                        return;
-                    }
-                    manager.spendAction(id);
-                }
-                case BONUS_ACTION -> {
-                    if (!manager.isCurrent(id)) {
-                        deny(player, "It's not your turn.");
-                        return;
-                    }
-                    if (!manager.hasBonus(id)) {
-                        deny(player, "You've already used your bonus action this turn.");
-                        return;
-                    }
-                    manager.spendBonus(id);
-                }
-                case REACTION -> {
-                    // Reactions may be cast off-turn, as long as one is available.
-                    if (!manager.hasReaction(id)) {
-                        deny(player, "You've already used your reaction.");
-                        return;
-                    }
-                    manager.spendReaction(id);
-                }
-            }
+        boolean inCombat = manager.isActive() && manager.isParticipant(id);
+
+        // Out of combat (or for a non-participant such as a spectating DM), resolve at once.
+        if (!inCombat) {
+            resolveEffect(player, spell);
+            return;
         }
 
-        resolveEffect(player, spell);
+        // In combat: validate turn + action budget (but don't spend yet), then suspend the
+        // cast as a pending action awaiting the DM. The budget is spent and the effect runs
+        // only on approval — nothing happens if it's denied or times out.
+        String error = validate(manager, id, spell.type());
+        if (error != null) {
+            deny(player, error);
+            return;
+        }
+        if (PendingActionManager.get().hasPendingFor(id)) {
+            deny(player, "You already have an action awaiting the DM.");
+            return;
+        }
+
+        MinecraftServer server = player.level().getServer();
+        if (server == null) {
+            return;
+        }
+        String description = player.getName().getString() + " casts " + spell.name() + " (" + spell.type().label() + ")";
+        PendingActionManager.get().submit(
+                description,
+                id,
+                () -> { // onApprove: spend budget and resolve the effect
+                    spendBudget(manager, id, spell.type());
+                    resolveEffect(player, spell);
+                },
+                () -> player.sendSystemMessage( // onDeny
+                        Component.literal("Your " + spell.name() + " was not allowed.").withStyle(ChatFormatting.RED)),
+                APPROVAL_TIMEOUT_TICKS,
+                server);
+        player.sendSystemMessage(Component.literal("Casting " + spell.name() + " — awaiting the DM's approval...")
+                .withStyle(ChatFormatting.GRAY));
+    }
+
+    /** Returns an error message if the cast is not permitted by turn/budget rules, else null. */
+    private static String validate(InitiativeManager manager, UUID id, SpellType type) {
+        return switch (type) {
+            case ACTION -> {
+                if (!manager.isCurrent(id)) {
+                    yield "It's not your turn.";
+                }
+                yield manager.hasAction(id) ? null : "You've already used your action this turn.";
+            }
+            case BONUS_ACTION -> {
+                if (!manager.isCurrent(id)) {
+                    yield "It's not your turn.";
+                }
+                yield manager.hasBonus(id) ? null : "You've already used your bonus action this turn.";
+            }
+            // Reactions may be cast off-turn, as long as one is available.
+            case REACTION -> manager.hasReaction(id) ? null : "You've already used your reaction.";
+        };
+    }
+
+    private static void spendBudget(InitiativeManager manager, UUID id, SpellType type) {
+        switch (type) {
+            case ACTION -> manager.spendAction(id);
+            case BONUS_ACTION -> manager.spendBonus(id);
+            case REACTION -> manager.spendReaction(id);
+        }
     }
 
     /**

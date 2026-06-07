@@ -196,5 +196,7 @@ public final class InitiativeManager {
         budgets.clear();
         turnIndex = 0;
         round = 0;
+        // Drop any actions still waiting on the DM — the encounter is over.
+        PendingActionManager.get().clearAll();
     }
 }

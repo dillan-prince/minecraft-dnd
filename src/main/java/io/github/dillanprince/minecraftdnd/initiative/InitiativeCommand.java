@@ -29,18 +29,8 @@ public final class InitiativeCommand {
 
     private InitiativeCommand() {}
 
-    /**
-     * DM gate (per chosen design): only the world host may run DM commands. On an
-     * integrated/LAN server that's the singleplayer owner; the server console is also
-     * allowed. NOTE: on a true dedicated server there is no host player, so only the
-     * console passes — this will need an explicit DM designation if we deploy that way.
-     */
     private static boolean isDm(CommandSourceStack source) {
-        ServerPlayer player = source.getPlayer();
-        if (player == null) {
-            return true; // server console / command block on the host
-        }
-        return source.getServer().isSingleplayerOwner(player.nameAndId());
+        return DmAccess.isDm(source);
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -62,13 +52,15 @@ public final class InitiativeCommand {
         MinecraftServer server = source.getServer();
         InitiativeManager manager = InitiativeManager.get();
 
-        // Participants = all non-spectator players currently online.
+        // Participants = all non-spectator players currently online, excluding the DM (the
+        // DM referees the encounter rather than taking a turn in it).
         List<ServerPlayer> players = server.getPlayerList().getPlayers().stream()
                 .filter(p -> !p.isSpectator())
+                .filter(p -> !DmAccess.isDm(server, p))
                 .toList();
 
         if (players.isEmpty()) {
-            source.sendFailure(Component.literal("No non-spectator players to roll initiative for."));
+            source.sendFailure(Component.literal("No players to roll initiative for (the DM is excluded)."));
             return 0;
         }
 

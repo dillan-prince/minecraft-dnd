@@ -26,6 +26,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
+import io.github.dillanprince.minecraftdnd.initiative.DmCommand;
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeCommand;
 import io.github.dillanprince.minecraftdnd.initiative.InitiativeManager;
 import io.github.dillanprince.minecraftdnd.spell.SpellbookItem;
@@ -114,6 +115,7 @@ public class minecraftdnd {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         InitiativeCommand.register(event.getDispatcher());
+        DmCommand.register(event.getDispatcher());
     }
 
     // Initiative state is a process-wide singleton; clear it on shutdown so a fresh

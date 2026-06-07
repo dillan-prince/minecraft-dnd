@@ -7,6 +7,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
@@ -27,5 +29,21 @@ public class minecraftdndClient {
         // Some client setup code
         minecraftdnd.LOGGER.info("HELLO FROM CLIENT SETUP");
         minecraftdnd.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+    }
+
+    // Dev convenience: stamp the player's username into the window title so multiple local
+    // test clients (e.g. the DM host + a joined player) are easy to tell apart on the
+    // taskbar. Vanilla rewrites the title on screen/level changes, so we re-apply each tick.
+    // Gated to the dev environment — never affects shipped builds.
+    @SubscribeEvent
+    static void onClientTick(ClientTickEvent.Post event) {
+        if (FMLEnvironment.isProduction()) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getWindow() == null || mc.getUser() == null) {
+            return;
+        }
+        mc.getWindow().setTitle("Minecraft — " + mc.getUser().getName());
     }
 }

@@ -50,7 +50,21 @@ neoForge {
         client {
             client()
 
+            // This client is the DM / LAN host in local testing.
+            // Note: Minecraft usernames must be [A-Za-z0-9_] (no spaces), even in dev.
+            programArgument '--username'
+            programArgument 'DungeonMaster'
+
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // Second client for local multiplayer testing (e.g. off-turn action gating).
+        // Different --username so it doesn't collide with the default "Dev" client.
+        clientTwo {
+            client()
+            programArgument '--username'
+            programArgument 'Player'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 

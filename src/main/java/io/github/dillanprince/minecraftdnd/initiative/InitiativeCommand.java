@@ -29,9 +29,23 @@ public final class InitiativeCommand {
 
     private InitiativeCommand() {}
 
+    /**
+     * DM gate (per chosen design): only the world host may run DM commands. On an
+     * integrated/LAN server that's the singleplayer owner; the server console is also
+     * allowed. NOTE: on a true dedicated server there is no host player, so only the
+     * console passes — this will need an explicit DM designation if we deploy that way.
+     */
+    private static boolean isDm(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            return true; // server console / command block on the host
+        }
+        return source.getServer().isSingleplayerOwner(player.nameAndId());
+    }
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("initiative")
-                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                .requires(InitiativeCommand::isDm)
                 .then(Commands.literal("start").executes(ctx -> start(ctx.getSource())))
                 .then(Commands.literal("next").executes(ctx -> next(ctx.getSource())))
                 .then(Commands.literal("end").executes(ctx -> end(ctx.getSource())))
@@ -40,7 +54,7 @@ public final class InitiativeCommand {
         com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> node = dispatcher.register(command);
         // Alias: /init -> /initiative
         dispatcher.register(Commands.literal("init")
-                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                .requires(InitiativeCommand::isDm)
                 .redirect(node));
     }
 
